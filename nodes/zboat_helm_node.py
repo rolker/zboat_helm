@@ -9,6 +9,7 @@ import rospy
 from geometry_msgs.msg import TwistStamped
 import zboat_helm.zboat
 from marine_msgs.msg import Helm, Heartbeat, KeyValue
+from std_msgs.msg import String
 
 class ZBoatHelm:
     def __init__(self):
@@ -34,7 +35,7 @@ class ZBoatHelm:
 
     def vehicleStatusCallback(self,event):
         hb = Heartbeat()
-        nb.header.stamp = rospy.get_rostime()
+        hb.header.stamp = rospy.get_rostime()
         kv = KeyValue()
         kv.key = "piloting_mode"
         kv.value = self.pilotingMode
@@ -50,6 +51,7 @@ class ZBoatHelm:
         rospy.Subscriber('helm',Helm,self.helmCallback)
         rospy.Subscriber('/project11/piloting_mode', String, self.pilotingModeCallback)
         self.heartbeat_pub = rospy.Publisher('/heartbeat',Heartbeat,queue_size=1)
+        rospy.Timer(rospy.Duration.from_sec(0.2),self.vehicleStatusCallback)
         rospy.spin()
         
 if __name__ == '__main__':

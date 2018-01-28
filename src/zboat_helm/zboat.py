@@ -49,7 +49,10 @@ class ZBoat:
             left_thrust, right_thrust, rudder))
 
 if __name__ == '__main__':
-  zb = ZBoat()
+  if len(sys.argv) > 1:
+    zb = ZBoat(sys.argv[1])
+  else:
+    zb = ZBoat()
   zb.open_port()
   zb.set_autonomy_mode()
   for i in range(5):
