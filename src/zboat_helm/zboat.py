@@ -9,7 +9,7 @@ class ZBoat:
     #'\\.\COMxx'
     #'/dev/ttyUSB0'
     #38400
-    def __init__(self, serial_port='/dev/ttyS0', baudrate=38400):
+    def __init__(self, serial_port='/dev/ttyUSB1', baudrate=115200):
         self.serial_port = serial_port
         self.baudrate = baudrate
         self.port_open = False
@@ -49,9 +49,10 @@ class ZBoat:
             left_thrust, right_thrust, rudder))
 
 if __name__ == '__main__':
-    if len(sys.argv) == 1:
-        print('Usage: pwm_test.py thrust rudder')
-        print('       pwm_test.py left_trust right_thrust rudder')
-        print('       steptest minthrust:step:maxthrust,timeperstep')
-    else:
-        main(sys.argv[1:])
+  zb = ZBoat()
+  zb.open_port()
+  zb.set_autonomy_mode()
+  for i in range(5):
+    zb.write_pwm_values(2.0, 2.0, 2.0)
+    time.sleep(1)
+  zb.write_pwm_values(1.5, 1.5, 1.5)

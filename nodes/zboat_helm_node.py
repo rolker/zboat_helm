@@ -15,9 +15,15 @@ class ZBoatHelm:
         self.zboat = zboat_helm.zboat.ZBoat()
         
     def twistCallback(self,data):
-        rospy.loginfo(rospy.get_caller_id() + ": ", data)
+        thrust = 1.5-data.twist.linear.x/2.0
+        rudder = 1.5-data.twist.angular.z/2.0
+        print thrust,rudder
+        self.zboat.set_autonomy_mode()
+        self.zboat.write_pwm_values(thrust, thrust, rudder)
     
     def run(self):
+        self.zboat.open_port()
+        self.zboat.set_autonomy_mode()
         rospy.init_node('zboat_helm')
         rospy.Subscriber('cmd_vel',TwistStamped,self.twistCallback)
         rospy.spin()
