@@ -10,7 +10,6 @@ project(zboat_helm)
 find_package(catkin REQUIRED COMPONENTS
   geographic_msgs
   geometry_msgs
-  mission_plan
   rospy
 )
 
