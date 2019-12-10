@@ -9,7 +9,7 @@ class ZBoat:
     #'\\.\COMxx'
     #'/dev/ttyUSB0'
     #38400
-    def __init__(self, serial_port='/dev/ttyUSB1', baudrate=115200):
+    def __init__(self, serial_port='/dev/ttyUSB0', baudrate=115200):
         self.serial_port = serial_port
         self.baudrate = baudrate
         self.port_open = False

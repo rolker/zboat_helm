@@ -8,7 +8,7 @@
 import rospy
 from geometry_msgs.msg import TwistStamped
 import zboat_helm.zboat
-
+from marine_msgs.msg import Helm
 
 class ZBoatHelm:
     def __init__(self):
@@ -21,11 +21,15 @@ class ZBoatHelm:
         self.zboat.set_autonomy_mode()
         self.zboat.write_pwm_values(thrust, thrust, rudder)
     
+    def helmCallback(self,data):
+        print data
+
     def run(self):
         self.zboat.open_port()
         self.zboat.set_autonomy_mode()
         rospy.init_node('zboat_helm')
         rospy.Subscriber('cmd_vel',TwistStamped,self.twistCallback)
+        rospy.Subscriber('helm',Helm,self.helmCallback)
         rospy.spin()
         
 if __name__ == '__main__':
