@@ -8,9 +8,15 @@ find_package(catkin REQUIRED COMPONENTS
   geographic_msgs
   geometry_msgs
   rospy
+  dynamic_reconfigure
 )
 
 catkin_python_setup()
+
+generate_dynamic_reconfigure_options(
+    cfg/zboat_helm.cfg
+)
+
 
 catkin_package(
 )

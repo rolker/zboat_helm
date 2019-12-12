@@ -10,28 +10,38 @@ from geometry_msgs.msg import TwistStamped
 import zboat_helm.zboat
 from marine_msgs.msg import Helm, Heartbeat, KeyValue
 from std_msgs.msg import String
+from std_msgs.msg import Float
+
+from dynamic_reconfigure.server import Server
+from zboat_helm.cfg import zboat_helmConfig
 
 class ZBoatHelm:
     def __init__(self):
         self.zboat = zboat_helm.zboat.ZBoat()
         self.pilotingMode = 'standby'
+        self.speed_limiter = 0.05
         
     def twistCallback(self,data):
-        thrust = 1.5-data.twist.linear.x/2.0
-        rudder = 1.5-data.twist.angular.z/2.0
-        print thrust,rudder
-        self.zboat.set_autonomy_mode()
-        self.zboat.write_pwm_values(thrust, thrust, rudder)
+        self.applyThurstRudder(data.twist.linear.x,-data.twist.angular.z)
     
     def helmCallback(self,data):
-        thrust = 1.5-data.throttle/2.0
-        rudder = 1.5-data.rudder/2.0
-        print thrust,rudder
-        self.zboat.set_autonomy_mode()
-        self.zboat.write_pwm_values(thrust, thrust, rudder)
+        self.applyThurstRudder(data.throttle, data.rudder)
+
+    def applyThurstRudder(self, thrurst, rudder):
+        t = 1.5-(self.speed_limiter*min(1.0,max(-1.0,thrust))/2.0
+        r = 1.5-rudder/2.0
+        self.pwm_left_pub.publish(t)
+        self.pwm_right_pub.publish(t)
+        self.pwm_rudder_pub.publish(r)
+        self.zboat.write_pwm_values(t, t, r)
 
     def pilotingModeCallback(self,data):
         self.pilotingMode = data.data
+        if data.data == 'standby':
+            self.zboat.set_manual_mode()
+        else:
+            self.zboat.set_autonomy_mode()
+        
 
     def vehicleStatusCallback(self,event):
         hb = Heartbeat()
@@ -42,6 +52,10 @@ class ZBoatHelm:
         hb.values.append(kv)
     
         self.heartbeat_pub.publish(hb)
+
+    def reconfigure_callback(self, config, level):
+        self.speed_limiter = config['speed_limiter']
+        return config
         
     def run(self):
         self.zboat.open_port()
@@ -50,7 +64,14 @@ class ZBoatHelm:
         rospy.Subscriber('cmd_vel',TwistStamped,self.twistCallback)
         rospy.Subscriber('helm',Helm,self.helmCallback)
         rospy.Subscriber('/project11/piloting_mode', String, self.pilotingModeCallback)
+        
         self.heartbeat_pub = rospy.Publisher('/heartbeat',Heartbeat,queue_size=1)
+        self.pwm_left_pub = rospy.Publisher('/zboat/pwm/left',Float,queue_size=1)
+        self.pwm_right_pub = rospy.Publisher('/zboat/pwm/right',Float,queue_size=1)
+        self.pwm_rudder_pub = rospy.Publisher('/zboat/pwm/rudder',Float,queue_size=1)
+        
+        srv = Server(zboat_helmConfig, self.reconfigure_callback)
+        
         rospy.Timer(rospy.Duration.from_sec(0.2),self.vehicleStatusCallback)
         rospy.spin()
         
