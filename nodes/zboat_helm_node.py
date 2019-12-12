@@ -10,7 +10,7 @@ from geometry_msgs.msg import TwistStamped
 import zboat_helm.zboat
 from marine_msgs.msg import Helm, Heartbeat, KeyValue
 from std_msgs.msg import String
-from std_msgs.msg import Float
+from std_msgs.msg import Float32
 
 from dynamic_reconfigure.server import Server
 from zboat_helm.cfg import zboat_helmConfig
@@ -19,20 +19,21 @@ class ZBoatHelm:
     def __init__(self):
         self.zboat = zboat_helm.zboat.ZBoat()
         self.pilotingMode = 'standby'
-        self.speed_limiter = 0.05
+        self.speed_limiter = 0.1
         
     def twistCallback(self,data):
-        self.applyThurstRudder(data.twist.linear.x,-data.twist.angular.z)
+        self.applyThrustRudder(data.twist.linear.x,-data.twist.angular.z)
     
     def helmCallback(self,data):
-        self.applyThurstRudder(data.throttle, data.rudder)
+        self.applyThrustRudder(data.throttle, data.rudder)
 
-    def applyThurstRudder(self, thrurst, rudder):
-        t = 1.5-(self.speed_limiter*min(1.0,max(-1.0,thrust))/2.0
-        r = 1.5-rudder/2.0
+    def applyThrustRudder(self, thrust, rudder):
+        t = 1.5-(self.speed_limiter*min(1.0,max(-1.0,thrust)))/2.0
+        r = 1.5+rudder/2.0
         self.pwm_left_pub.publish(t)
         self.pwm_right_pub.publish(t)
         self.pwm_rudder_pub.publish(r)
+        #self.zboat.set_autonomy_mode()
         self.zboat.write_pwm_values(t, t, r)
 
     def pilotingModeCallback(self,data):
@@ -66,9 +67,9 @@ class ZBoatHelm:
         rospy.Subscriber('/project11/piloting_mode', String, self.pilotingModeCallback)
         
         self.heartbeat_pub = rospy.Publisher('/heartbeat',Heartbeat,queue_size=1)
-        self.pwm_left_pub = rospy.Publisher('/zboat/pwm/left',Float,queue_size=1)
-        self.pwm_right_pub = rospy.Publisher('/zboat/pwm/right',Float,queue_size=1)
-        self.pwm_rudder_pub = rospy.Publisher('/zboat/pwm/rudder',Float,queue_size=1)
+        self.pwm_left_pub = rospy.Publisher('/zboat/pwm/left',Float32,queue_size=1)
+        self.pwm_right_pub = rospy.Publisher('/zboat/pwm/right',Float32,queue_size=1)
+        self.pwm_rudder_pub = rospy.Publisher('/zboat/pwm/rudder',Float32,queue_size=1)
         
         srv = Server(zboat_helmConfig, self.reconfigure_callback)
         
