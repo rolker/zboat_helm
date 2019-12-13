@@ -79,7 +79,7 @@ class ZBoatHelm:
         self.pwm_left_pub = rospy.Publisher('/zboat/pwm/left',Float32,queue_size=1)
         self.pwm_right_pub = rospy.Publisher('/zboat/pwm/right',Float32,queue_size=1)
         self.pwm_rudder_pub = rospy.Publisher('/zboat/pwm/rudder',Float32,queue_size=1)
-        self.heading_pub = rospy.publisher('/heading', NavEulerStamped,queue_size=1)
+        self.heading_pub = rospy.Publisher('/heading', NavEulerStamped,queue_size=1)
         
         srv = Server(zboat_helmConfig, self.reconfigure_callback)
         
