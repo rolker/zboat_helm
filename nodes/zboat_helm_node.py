@@ -8,9 +8,9 @@
 import rospy
 from geometry_msgs.msg import TwistStamped
 import zboat_helm.zboat
-from marine_msgs.msg import Helm, Heartbeat, KeyValue
+from marine_msgs.msg import Helm, Heartbeat, KeyValue, NavEulerStamped
 from std_msgs.msg import String
-from std_msgs.msg import Float32
+from std_msgs.msg import Float32, Float64
 
 from dynamic_reconfigure.server import Server
 from zboat_helm.cfg import zboat_helmConfig
@@ -20,6 +20,7 @@ class ZBoatHelm:
         self.zboat = zboat_helm.zboat.ZBoat()
         self.pilotingMode = 'standby'
         self.speed_limiter = 0.15
+        self.magnetic_declination = 0.0
         
     def twistCallback(self,data):
         self.applyThrustRudder(data.twist.linear.x,-data.twist.angular.z)
@@ -57,9 +58,16 @@ class ZBoatHelm:
         hb.values.append(kv)
     
         self.heartbeat_pub.publish(hb)
+        
+    def headingCallback(self,data):
+        nes = NavEulerStamped()
+        nes.header.stamp = rospy.get_rostime()
+        nes.orientation.heading = data.data+self.magnetic_declination
+        self.heading_pub.publish(nes)
 
     def reconfigure_callback(self, config, level):
         self.speed_limiter = config['speed_limiter']
+        self.magnetic_declination = config['magnetic_declination']
         return config
         
     def run(self):
@@ -69,11 +77,13 @@ class ZBoatHelm:
         rospy.Subscriber('cmd_vel',TwistStamped,self.twistCallback)
         rospy.Subscriber('helm',Helm,self.helmCallback)
         rospy.Subscriber('/project11/piloting_mode', String, self.pilotingModeCallback)
+        rospy.Subscriber('/mavros/global_position/compass_hdg', Float64, self.headingCallback)
         
         self.heartbeat_pub = rospy.Publisher('/heartbeat',Heartbeat,queue_size=1)
         self.pwm_left_pub = rospy.Publisher('/zboat/pwm/left',Float32,queue_size=1)
         self.pwm_right_pub = rospy.Publisher('/zboat/pwm/right',Float32,queue_size=1)
         self.pwm_rudder_pub = rospy.Publisher('/zboat/pwm/rudder',Float32,queue_size=1)
+        self.heading_pub = rospy.Publisher('/heading', NavEulerStamped,queue_size=1)
         
         srv = Server(zboat_helmConfig, self.reconfigure_callback)
         
