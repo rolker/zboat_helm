@@ -19,7 +19,7 @@ class ZBoatHelm:
     def __init__(self):
         self.zboat = zboat_helm.zboat.ZBoat()
         self.pilotingMode = 'standby'
-        self.speed_limiter = 0.1
+        self.speed_limiter = 0.15
         
     def twistCallback(self,data):
         self.applyThrustRudder(data.twist.linear.x,-data.twist.angular.z)
@@ -29,12 +29,16 @@ class ZBoatHelm:
 
     def applyThrustRudder(self, thrust, rudder):
         t = 1.5-(self.speed_limiter*min(1.0,max(-1.0,thrust)))/2.0
-        r = 1.5+rudder/2.0
-        self.pwm_left_pub.publish(t)
-        self.pwm_right_pub.publish(t)
+        r = 1.5 #+rudder/2.0
+        
+        tl = t+(self.speed_limiter*min(1.0,max(-1.0,rudder)))/2.0
+        tr = t-(self.speed_limiter*min(1.0,max(-1.0,rudder)))/2.0
+        
+        self.pwm_left_pub.publish(tl)
+        self.pwm_right_pub.publish(tr)
         self.pwm_rudder_pub.publish(r)
         #self.zboat.set_autonomy_mode()
-        self.zboat.write_pwm_values(t, t, r)
+        self.zboat.write_pwm_values(tl, tr, r)
 
     def pilotingModeCallback(self,data):
         self.pilotingMode = data.data
