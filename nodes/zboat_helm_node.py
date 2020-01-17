@@ -22,13 +22,57 @@ class ZBoatHelm:
         self.speed_limiter = 0.15
         self.magnetic_declination = 0.0
         
+        self.heading = None
+        
+        self.helm_command = {}
+        self.desired_command = {}
+        
     def twistCallback(self,data):
-        self.applyThrustRudder(data.twist.linear.x,-data.twist.angular.z)
+        self.helm_command['throttle'] = data.twist.linear.x
+        self.helm_command['rudder'] = -data.twist.angular.z
+        self.helm_command['timestamp'] = data.header.stamp
+        self.applyThrustRudder()
     
     def helmCallback(self,data):
-        self.applyThrustRudder(data.throttle, data.rudder)
+        self.helm_command['throttle'] = data.throttle
+        self.helm_command['rudder'] = data.rudder
+        self.helm_command['timestamp'] = data.header.stamp
+        self.applyThrustRudder()
 
-    def applyThrustRudder(self, thrust, rudder):
+    def desiredSpeedCallback(self, data):
+        self.desired_command['speed'] = data.twist.linear.x
+        self.desired_command['speed_timestamp'] = data.header.stamp
+
+    def desiredHeadingCallback(self, data):
+        self.desired_command['heading'] = data.orientation.heading
+        self.desired_command['heading_timestamp'] = data.header.stamp
+        self.applyThrustRudder()
+        
+    def applyThrustRudder(self):
+        thrust = 0
+        rudder = 0
+        
+        now = rospy.get_rostime()
+        
+        doDesired = True
+        
+        if 'timestamp' in self.helm_command:
+            if (now - self.helm_command['timestamp']) < rospy.Duration.from_sec(0.5):
+                doDesired = False
+                
+        if doDesired:
+            if 'heading_timestamp' in self.desired_command and 'speed_timestamp' in self.desired_command and (now - self.desired_command['heading_timestamp']) < rospy.Duration.from_sec(0.5) and (now - self.desired_command['speed_timestamp']) < rospy.Duration.from_sec(0.5):
+                delta_heading = self.desired_command['heading'] - self.heading
+                while delta_heading > 180.0:
+                    delta_heading -= 360.0
+                while delta_heading < -180.0:
+                    delta_heading += 360.0;
+                rudder = max(-1,min(math.radians(delta_heading),1.0))
+                thrust = max(-1,min(self.desired_command['speed'],1.0))
+        else:
+            thrust = self.helm_command['throttle']
+            rudder = self.helm_command['rudder']
+        
         t = 1.5-(self.speed_limiter*min(1.0,max(-1.0,thrust)))/2.0
         r = 1.5 #+rudder/2.0
         
@@ -60,9 +104,10 @@ class ZBoatHelm:
         self.heartbeat_pub.publish(hb)
         
     def headingCallback(self,data):
+        self.heading = data.data+self.magnetic_declination
         nes = NavEulerStamped()
         nes.header.stamp = rospy.get_rostime()
-        nes.orientation.heading = data.data+self.magnetic_declination
+        nes.orientation.heading = self.heading
         self.heading_pub.publish(nes)
 
     def reconfigure_callback(self, config, level):
@@ -79,6 +124,9 @@ class ZBoatHelm:
         rospy.Subscriber('/project11/piloting_mode', String, self.pilotingModeCallback)
         rospy.Subscriber('/mavros/global_position/compass_hdg', Float64, self.headingCallback)
         
+        rospy.Subscriber('/project11/desired_speed', TwistStamped, self.desiredSpeedCallback)
+        rospy.Subscriber('/project11/desired_heading', NavEulerStamped, self.desiredHeadingCallback)
+    
         self.heartbeat_pub = rospy.Publisher('/heartbeat',Heartbeat,queue_size=1)
         self.pwm_left_pub = rospy.Publisher('/zboat/pwm/left',Float32,queue_size=1)
         self.pwm_right_pub = rospy.Publisher('/zboat/pwm/right',Float32,queue_size=1)
