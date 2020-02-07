@@ -43,10 +43,10 @@ class ZBoat:
         right_thrust = clamp(right_thrust, 1.0, 2.0)
         rudder = clamp(rudder, 1.0, 2.0)
 
-        print('Writing PWM values r_thrust={:.3f}, l_thrust={:.3f}, rudder={:.3f}'.format( \
+        print('Writing PWM values l_thrust={:.3f}, r_thrust={:.3f}, rudder={:.3f}'.format( \
             left_thrust, right_thrust, rudder))
         self.ser.write('!pwm, *, {:.3f}, {:.3f}, {:.3f}, *, *\r\n'.format( \
-            left_thrust, right_thrust, rudder))
+            right_thrust, left_thrust, rudder))
 
 if __name__ == '__main__':
   if len(sys.argv) > 1:
