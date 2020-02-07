@@ -5,6 +5,7 @@
 # University of New Hampshire
 # Copyright 2018, All rights reserved.
 
+import sys
 import rospy
 from geometry_msgs.msg import TwistStamped
 import zboat_helm.zboat
@@ -16,10 +17,14 @@ from dynamic_reconfigure.server import Server
 from zboat_helm.cfg import zboat_helmConfig
 
 class ZBoatHelm:
-    def __init__(self):
-        self.zboat = zboat_helm.zboat.ZBoat()
+    def __init__(self, serial_port):
+        self.zboat = zboat_helm.zboat.ZBoat(serial_port)
         self.pilotingMode = 'standby'
+        
         self.speed_limiter = 0.15
+        self.turn_speed_limiter = 0.3
+        self.differential_bias = 0.44
+        
         self.magnetic_declination = 0.0
         
         self.heading = None
@@ -73,12 +78,33 @@ class ZBoatHelm:
             thrust = self.helm_command['throttle']
             rudder = self.helm_command['rudder']
         
-        t = 1.5-(self.speed_limiter*min(1.0,max(-1.0,thrust)))/2.0
+        #clamp values to range -1 to 1
+        thrust = max(-1.0,min(1.0,thrust))
+        rudder = max(-1.0,min(1.0,rudder))
+        
+        rudder_mag = abs(rudder)
+        inv_rudder_mag = 1.0-rudder_mag
+        
+        #reduce thrust while turning
+        thrust *= inv_rudder_mag
+        
+        #apply speed limiters
+        thrust *= self.speed_limiter
+        rudder *= self.turn_speed_limiter
+        
+        t = 1.5-(thrust/2.0)
         r = 1.5 #+rudder/2.0
+
+        fwd_bias = self.differential_bias*2.0
+        rev_bias = (1.0-self.differential_bias)*2.0
         
-        tl = t+(self.speed_limiter*min(1.0,max(-1.0,rudder)))/2.0
-        tr = t-(self.speed_limiter*min(1.0,max(-1.0,rudder)))/2.0
-        
+        if rudder > 0: #turning right
+            tl = t-(fwd_bias*rudder/2.0)
+            tr = t+(rev_bias*rudder/2.0)
+        else:
+            tl = t-(rev_bias*rudder/2.0)
+            tr = t+(fwd_bias*rudder/2.0)
+                    
         self.pwm_left_pub.publish(tl)
         self.pwm_right_pub.publish(tr)
         self.pwm_rudder_pub.publish(r)
@@ -112,6 +138,8 @@ class ZBoatHelm:
 
     def reconfigure_callback(self, config, level):
         self.speed_limiter = config['speed_limiter']
+        self.turn_speed_limiter = config['turn_speed_limiter']
+        self.differential_bias = config['differential_bias']
         self.magnetic_declination = config['magnetic_declination']
         return config
         
@@ -119,6 +147,13 @@ class ZBoatHelm:
         self.zboat.open_port()
         self.zboat.set_autonomy_mode()
         rospy.init_node('zboat_helm')
+
+        self.heartbeat_pub = rospy.Publisher('/heartbeat',Heartbeat,queue_size=1)
+        self.pwm_left_pub = rospy.Publisher('/zboat/pwm/left',Float32,queue_size=1)
+        self.pwm_right_pub = rospy.Publisher('/zboat/pwm/right',Float32,queue_size=1)
+        self.pwm_rudder_pub = rospy.Publisher('/zboat/pwm/rudder',Float32,queue_size=1)
+        self.heading_pub = rospy.Publisher('/heading', NavEulerStamped,queue_size=1)
+        
         rospy.Subscriber('cmd_vel',TwistStamped,self.twistCallback)
         rospy.Subscriber('helm',Helm,self.helmCallback)
         rospy.Subscriber('/project11/piloting_mode', String, self.pilotingModeCallback)
@@ -127,18 +162,17 @@ class ZBoatHelm:
         rospy.Subscriber('/project11/desired_speed', TwistStamped, self.desiredSpeedCallback)
         rospy.Subscriber('/project11/desired_heading', NavEulerStamped, self.desiredHeadingCallback)
     
-        self.heartbeat_pub = rospy.Publisher('/heartbeat',Heartbeat,queue_size=1)
-        self.pwm_left_pub = rospy.Publisher('/zboat/pwm/left',Float32,queue_size=1)
-        self.pwm_right_pub = rospy.Publisher('/zboat/pwm/right',Float32,queue_size=1)
-        self.pwm_rudder_pub = rospy.Publisher('/zboat/pwm/rudder',Float32,queue_size=1)
-        self.heading_pub = rospy.Publisher('/heading', NavEulerStamped,queue_size=1)
-        
         srv = Server(zboat_helmConfig, self.reconfigure_callback)
         
         rospy.Timer(rospy.Duration.from_sec(0.2),self.vehicleStatusCallback)
         rospy.spin()
         
 if __name__ == '__main__':
-    zbh = ZBoatHelm()
+    if len(sys.argv) > 1:
+        serial_port = sys.argv[1]
+    else:
+        serial_port = '/dev/ttyUSB0'
+    print 'zboat serial port: ',serial_port
+    zbh = ZBoatHelm(serial_port)
     zbh.run()
     
