@@ -5,12 +5,14 @@
 # University of New Hampshire
 # Copyright 2018, All rights reserved.
 
+import sys
 import rospy
 from geometry_msgs.msg import TwistStamped
 import zboat_helm.zboat
 from marine_msgs.msg import Helm, Heartbeat, KeyValue, NavEulerStamped
 from std_msgs.msg import String
 from std_msgs.msg import Float32, Float64
+import math 
 
 from dynamic_reconfigure.server import Server
 from zboat_helm.cfg import zboat_helmConfig
@@ -20,6 +22,7 @@ class ZBoatHelm:
         self.zboat = zboat_helm.zboat.ZBoat()
         self.pilotingMode = 'standby'
         self.speed_limiter = 0.15
+	self.turn_speed_limiter = 0.5
         self.magnetic_declination = 0.0
         
         self.heading = None
@@ -73,12 +76,26 @@ class ZBoatHelm:
             thrust = self.helm_command['throttle']
             rudder = self.helm_command['rudder']
         
-        t = 1.5-(self.speed_limiter*min(1.0,max(-1.0,thrust)))/2.0
+	#make sure values are clamped from -1 to +1
+	thrust = max(-1.0,min(thrust,1.0))
+	rudder = max(-1.0,min(rudder,1.0))
+
+	rudder_mag = abs(rudder)
+	inverse_rudder_mag = 1.0-rudder_mag
+
+	#scale down throttle and rudder to respect limiters
+	thrust *= self.speed_limiter
+        rudder *= self.turn_speed_limiter
+
+	#scale down throttle while turning
+        thrust *= inverse_rudder_mag
+
+        t = 1.5-(thrust/2.0)
         r = 1.5 #+rudder/2.0
-        
-        tl = t+(self.speed_limiter*min(1.0,max(-1.0,rudder)))/2.0
-        tr = t-(self.speed_limiter*min(1.0,max(-1.0,rudder)))/2.0
-        
+       
+        tl = t+(rudder/2.0)
+        tr = t-(rudder/2.0)
+       	
         self.pwm_left_pub.publish(tl)
         self.pwm_right_pub.publish(tr)
         self.pwm_rudder_pub.publish(r)
@@ -112,6 +129,7 @@ class ZBoatHelm:
 
     def reconfigure_callback(self, config, level):
         self.speed_limiter = config['speed_limiter']
+	self.turn_speed_limiter = config['turn_speed_limiter']
         self.magnetic_declination = config['magnetic_declination']
         return config
         
@@ -139,6 +157,11 @@ class ZBoatHelm:
         rospy.spin()
         
 if __name__ == '__main__':
-    zbh = ZBoatHelm()
+    if len(sys.argv) > 1:
+        serial_port = sys.argv[1]
+    else:
+        serial_port = '/dev/ttyUSB0'
+    
+    zbh = ZBoatHelm(serial_port)
     zbh.run()
     
