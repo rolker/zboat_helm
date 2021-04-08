@@ -12,5 +12,5 @@ class GPS:
 if __name__ == '__main__':
   gps = GPS()
   while True:
-    print gps.read()
+    print (gps.read())
 
