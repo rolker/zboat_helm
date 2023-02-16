@@ -9,7 +9,7 @@ import sys
 import rospy
 from geometry_msgs.msg import TwistStamped
 import zboat_helm.zboat
-from marine_msgs.msg import Helm, Heartbeat, KeyValue, NavEulerStamped
+from project11_msgs.msg import Helm, Heartbeat, KeyValue, NavEulerStamped
 from std_msgs.msg import String
 from std_msgs.msg import Float32, Float64
 import math 
